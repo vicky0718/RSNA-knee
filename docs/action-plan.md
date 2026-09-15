@@ -5,12 +5,12 @@ no internet at scoring) + laptop RTX 3060 6 GB. Background and evidence: `compet
 
 ## Three bets, in order of expected value
 
-1. **Labels.** Only 58 of 4,407 studies carry gold labels; everything else is supervised by the
-   report. **Measured, not quoted** (`bin/score_labels.py`): the best public table scores **0.819**
-   against those 58, an all-negative predictor scores 0.655, and our rule reader scores 0.777.
-   The published "0.893 vs gold, regex 0.814" does not reproduce like-for-like. The public tables
-   also agree with *each other* on 96-99% of cells — three readings of one opinion, not three
-   opinions — while ours agrees with them on ~85%, which is the decorrelation worth having.
+1. **Labels — weaker than first assessed.** Only 58 of 4,407 studies carry gold labels. Measured
+   as macro AUC against those 58 (`bin/score_labels.py`), the best public table scores **0.893**,
+   reproducing its author's published figure; our rule reader scores 0.748, and blending it in
+   only drags the public table down. The public labels are good, and the bet is now narrow:
+   Synovitis (0.790), Fracture (0.793), Lateral OA (0.833) and Contusion (0.860) are the only
+   findings the public reader handles poorly. Everything else it reads at 0.88-0.99.
 2. **Honest validation.** The plateau's per-target fusion weights were fitted by public-LB probes
    (+0.002 on a 30% split, no OOF backing) and its CV likely ignores the shared-report and
    shared-scanner leaks. We fit fusion on leak-safe OOF instead.

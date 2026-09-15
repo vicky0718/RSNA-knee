@@ -7,9 +7,11 @@ Schedule: `docs/action-plan.md`.
 ## The three bets
 
 1. **Labels.** 58 of 4,407 studies have gold labels; the rest are supervised by a report in one of
-   ~10 languages. **Measured** on those 58 (`bin/score_labels.py`): best public table **0.819**,
-   our rule reader **0.777**, all-negative baseline 0.655. The published "0.893, regex 0.814" does
-   not reproduce. Beat 0.819 — `src/knee/rules.py`, `src/knee/reports.py`.
+   ~10 languages. **Measured as macro AUC** on those 58 (`bin/score_labels.py`): best public table
+   (`llm_labels_v4_blend`) **0.893**, our rule reader 0.748 — a gap of +0.144 [+0.102, +0.188].
+   The public table is strong and **is the baseline to build on, not to replace**. Remaining
+   headroom is target-specific: Synovitis 0.790, Fracture 0.793, Lateral OA 0.833, Contusion 0.860.
+   Everything else it reads at 0.88-0.99.
 2. **Honest validation.** The plateau's per-finding fusion weights were fitted by leaderboard
    probes on a 30% split. We fit on OOF and check the gain survives a held-out fold —
    `src/knee/fuse.py::honest_gain`.
@@ -29,11 +31,15 @@ Schedule: `docs/action-plan.md`.
 - **Look for ties.** `metrics.tie_report` after every inference run; a block of identical
   predictions means studies are falling through the slot logic.
 - **Log every run** in `experiments.csv` before looking at the score.
-- **Quote a number with its interval.** 58 gold studies is a small stick: the gap between our
-  reader and the best public table is +0.042 with a 95% CI of [+0.010, +0.079].
-- **Verify claims against the data.** The published label-agreement figure, the series flags and
-  the slot scheme each turned out different from their description; `bin/audit_data.py` and
-  `bin/score_labels.py` exist so the next claim gets checked too.
+- **Score label tables by AUC, never by agreement at 0.5.** The public tables hold calibrated
+  probabilities; thresholding them throws away what the metric rewards and made a 0.893 table
+  look like 0.819. `bin/score_labels.py` leads with AUC for this reason.
+- **Quote a number with its interval.** 58 gold studies is a small stick: our reader trails the
+  best public table by 0.144 macro AUC, 95% CI [0.102, 0.188].
+- **Verify claims against the data — including our own.** The series flags and the slot scheme
+  turned out different from their description, and one of our own "corrections" to a published
+  figure was itself wrong. `bin/audit_data.py` and `bin/score_labels.py` exist so the next claim
+  gets checked, by whoever makes it.
 
 ## Loop
 

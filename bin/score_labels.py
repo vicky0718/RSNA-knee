@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Score any set of label tables against the 58 gold studies, like for like.
+"""Score label tables against the 58 gold studies.
 
-Published agreement figures are not comparable unless the comparison is: the
-same 58 studies, the same binarisation, the same twelve columns. This prints
-that table for our reader and for every public CSV you point it at.
+**Macro AUC is the headline**, and binarising first is a trap: the public label
+tables hold calibrated probabilities, not 0/1, so thresholding them at 0.5
+discards exactly the information the competition metric rewards. Doing that
+made the best public table look like 0.819 when it is 0.893 — which is the
+figure its author published. Agreement is printed underneath as a secondary
+view, useful for reading a rule-based extractor but not for ranking supervision.
 
     python3 bin/score_labels.py --data DIR [--tables pub/**/*.csv ...]
 """
@@ -21,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from knee import reports as R, rules  # noqa: E402
 from knee.constants import TARGETS  # noqa: E402
+from knee.metrics import macro_auc, target_auc  # noqa: E402
 
 
 def load_table(path: Path) -> pd.DataFrame | None:
@@ -32,18 +36,21 @@ def load_table(path: Path) -> pd.DataFrame | None:
     return frame.set_index("StudyInstanceUID")[list(TARGETS)]
 
 
-def bootstrap_gap(a: np.ndarray, b: np.ndarray, truth: np.ndarray, draws: int = 4000):
-    """95% CI on the macro-agreement gap b - a, resampling studies.
+def bootstrap_gap(a: np.ndarray, b: np.ndarray, truth: np.ndarray, draws: int = 2000):
+    """95% CI on the macro-AUC gap b - a, resampling studies.
 
     58 studies is a small stick to measure with; a gap without an interval
     invites reading noise as progress.
     """
     rng = np.random.default_rng(0)
     n = len(truth)
-    gaps = np.empty(draws)
-    for d in range(draws):
+    gaps = []
+    for _ in range(draws):
         i = rng.integers(0, n, n)
-        gaps[d] = (b[i] == truth[i]).mean(axis=0).mean() - (a[i] == truth[i]).mean(axis=0).mean()
+        gap = macro_auc(truth[i], b[i]) - macro_auc(truth[i], a[i])
+        if np.isfinite(gap):
+            gaps.append(gap)
+    gaps = np.asarray(gaps)
     return float(gaps.mean()), float(np.percentile(gaps, 2.5)), float(np.percentile(gaps, 97.5))
 
 
@@ -58,7 +65,13 @@ def main() -> int:
     truth = gold.to_numpy() > 0.5
 
     states, _ = rules.read_corpus(train.loc[gold.index, "Report"])
-    tables = {"ours/rules": (states == R.LabelState.POSITIVE.value).astype(int)}
+    all_states, _ = rules.read_corpus(train["Report"])
+    calibration = R.calibrate(all_states, gold)
+    ours = pd.DataFrame(
+        calibration.apply(all_states).astype(float), index=train.index, columns=list(TARGETS)
+    ).loc[gold.index]
+    tables = {"ours/rules (calibrated)": ours}
+
     for path in args.tables:
         table = load_table(path)
         if table is None:
@@ -67,30 +80,38 @@ def main() -> int:
         if len(missing):
             print(f"skipping {path.name}: {len(missing)} gold studies absent")
             continue
-        tables[f"{path.parent.name}/{path.name}"] = (table.loc[gold.index] > 0.5).astype(int)
+        tables[path.name] = table.loc[gold.index].astype(float)
 
     rows = []
     for target in TARGETS:
+        column = list(TARGETS).index(target)
         row = {"target": target, "gold_pos": int((gold[target] > 0.5).sum())}
         for name, table in tables.items():
-            agree = (table[target].to_numpy() > 0.5) == (gold[target].to_numpy() > 0.5)
-            row[name] = round(float(agree.mean()), 3)
+            row[name] = round(target_auc(truth[:, column], table[target].to_numpy()), 3)
         rows.append(row)
     frame = pd.DataFrame(rows)
+    print("per-target AUC against the 58 gold studies:")
     print(frame.to_string(index=False))
 
-    print("\nMACRO agreement:")
-    macro = {name: float(frame[name].mean()) for name in tables}
-    all_negative = float(np.mean([(gold[t] <= 0.5).mean() for t in TARGETS]))
+    macro = {name: macro_auc(truth, table.to_numpy()) for name, table in tables.items()}
+    print("\nMACRO AUC (the headline):")
     for name, value in sorted(macro.items(), key=lambda kv: -kv[1]):
-        print(f"  {name:48} {value:.4f}")
-    print(f"  {'(all-negative baseline)':48} {all_negative:.4f}")
+        print(f"  {name:44} {value:.4f}")
 
-    ours = tables["ours/rules"].to_numpy() > 0.5
-    best = max((k for k in tables if k != "ours/rules"), key=lambda k: macro[k], default=None)
+    print("\nbinary agreement at 0.5 (secondary; misleading for soft tables):")
+    for name, table in sorted(tables.items()):
+        agree = np.mean([
+            ((table[t].to_numpy() > 0.5) == (gold[t].to_numpy() > 0.5)).mean() for t in TARGETS
+        ])
+        print(f"  {name:44} {agree:.4f}")
+    all_negative = float(np.mean([(gold[t] <= 0.5).mean() for t in TARGETS]))
+    print(f"  {'(all-negative baseline)':44} {all_negative:.4f}")
+
+    mine = tables["ours/rules (calibrated)"].to_numpy()
+    best = max((k for k in tables if not k.startswith("ours")), key=lambda k: macro[k], default=None)
     if best:
-        mean, low, high = bootstrap_gap(ours, tables[best].to_numpy() > 0.5, truth)
-        print(f"\n{best} minus ours: {mean:+.3f}  95% CI [{low:+.3f}, {high:+.3f}]")
+        mean, low, high = bootstrap_gap(mine, tables[best].to_numpy(), truth)
+        print(f"\n{best} minus ours: {mean:+.3f} macro AUC  95% CI [{low:+.3f}, {high:+.3f}]")
     return 0
 
 

@@ -15,12 +15,13 @@ Two kinds of finding need different logic:
   and negation is what has to be detected.
 
 Measured against the 58 gold studies (bin/score_labels.py), this reader scores
-0.777 macro agreement. The best public LLM table scores 0.819 and an
-all-negative predictor scores 0.655, so the published claim of "0.893 vs gold,
-where regex scores 0.814" does not reproduce under a like-for-like comparison.
-This module is the no-GPU fallback and the decorrelated second opinion — it
-agrees with the public tables on only ~85% of cells, where they agree with each
-other on 96-99% — and `reports.py` calibrates whatever it produces.
+0.748 macro AUC once calibrated. The best public LLM table scores 0.893 — which
+does reproduce its author's published figure, as AUC rather than as agreement at
+a 0.5 threshold. So this module is the no-GPU fallback, not the label source:
+blending it into the public table lowered the score at every weight tested.
+Where it earns its keep is the three-state reading (`positive`, `negative`,
+`not_mentioned`) that `reports.py` calibrates, and as an auditable second
+opinion on the findings the public table reads worst.
 """
 
 from __future__ import annotations
