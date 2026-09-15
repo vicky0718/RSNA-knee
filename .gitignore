@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+# Competition data and artefacts never belong in the repo
+data/
+cache/
+weights/
+*.npy
+*.npz
+*.dcm
+*.pt
+*.ckpt
+submission.csv

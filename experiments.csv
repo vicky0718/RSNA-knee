@@ -1,0 +1,2 @@
+date,config,arms,labels,folds,oof_macro_auc,worst_target,worst_target_auc,lb_public,runtime_min,notes
+2026-09-15,public-0941-repro,"dino20+a5x5+radimagenet+coatnet",public-pilkwang,public-probe22,,,,,,"baseline to reproduce; fill in after first submission"
