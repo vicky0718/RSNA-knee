@@ -6,8 +6,11 @@ no internet at scoring) + laptop RTX 3060 6 GB. Background and evidence: `compet
 ## Three bets, in order of expected value
 
 1. **Labels.** Only 58 of 4,407 studies carry gold labels; everything else is supervised by the
-   report. The best published extraction scores **0.893 vs gold** (regex 0.814) and ~everyone
-   shares the same three correlated label tables. Nobody has beaten 0.893 in public.
+   report. **Measured, not quoted** (`bin/score_labels.py`): the best public table scores **0.819**
+   against those 58, an all-negative predictor scores 0.655, and our rule reader scores 0.777.
+   The published "0.893 vs gold, regex 0.814" does not reproduce like-for-like. The public tables
+   also agree with *each other* on 96-99% of cells — three readings of one opinion, not three
+   opinions — while ours agrees with them on ~85%, which is the decorrelation worth having.
 2. **Honest validation.** The plateau's per-target fusion weights were fitted by public-LB probes
    (+0.002 on a 30% split, no OOF backing) and its CV likely ignores the shared-report and
    shared-scanner leaks. We fit fusion on leak-safe OOF instead.

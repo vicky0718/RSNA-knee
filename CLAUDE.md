@@ -7,14 +7,16 @@ Schedule: `docs/action-plan.md`.
 ## The three bets
 
 1. **Labels.** 58 of 4,407 studies have gold labels; the rest are supervised by a report in one of
-   ~12 languages. Best public table scores **0.893** against the gold studies (regex 0.814).
-   Beat it — `src/knee/reports.py`.
+   ~10 languages. **Measured** on those 58 (`bin/score_labels.py`): best public table **0.819**,
+   our rule reader **0.777**, all-negative baseline 0.655. The published "0.893, regex 0.814" does
+   not reproduce. Beat 0.819 — `src/knee/rules.py`, `src/knee/reports.py`.
 2. **Honest validation.** The plateau's per-finding fusion weights were fitted by leaderboard
    probes on a 30% split. We fit on OOF and check the gain survives a held-out fold —
    `src/knee/fuse.py::honest_gain`.
 3. **The empty-slot leak.** The public pipeline feeds a zero column when a slot is missing
-   (Axial no-fat-sat is present for 19.4% of studies). Its author calls it "the cheapest score leak
-   in this whole pipeline" — `src/knee/corpus.py::fill_missing_slots`.
+   (Axial no-fat-sat is present for 19.4% of studies — verified against train_series.csv). Its
+   author calls it "the cheapest score leak in this whole pipeline" —
+   `src/knee/corpus.py::fill_missing_slots`.
 
 ## House rules
 
@@ -27,6 +29,11 @@ Schedule: `docs/action-plan.md`.
 - **Look for ties.** `metrics.tie_report` after every inference run; a block of identical
   predictions means studies are falling through the slot logic.
 - **Log every run** in `experiments.csv` before looking at the score.
+- **Quote a number with its interval.** 58 gold studies is a small stick: the gap between our
+  reader and the best public table is +0.042 with a 95% CI of [+0.010, +0.079].
+- **Verify claims against the data.** The published label-agreement figure, the series flags and
+  the slot scheme each turned out different from their description; `bin/audit_data.py` and
+  `bin/score_labels.py` exist so the next claim gets checked too.
 
 ## Loop
 

@@ -117,3 +117,46 @@ before reading any per-finding weight as skill."*
 | `dreaddevelopment/raptor-knee-{maxspan,native384,widefov,finespacing,fullspan}` | 67/33/… | CoAtNet heads per slice-sampling strategy |
 
 No 570 GB preprocessing run is needed — the corpora already exist.
+
+---
+
+## Measured, 2026-09-15 (with competition access)
+
+Everything above was scraped without a login. With the data in hand, three of its numbers were
+checked and one claim did not survive.
+
+**Label agreement against the 58 gold studies** (`bin/score_labels.py`, same studies, same
+binarisation, all twelve columns):
+
+| table | macro agreement |
+|---|---|
+| `labels_llm_gpt56sol.csv` (sol56) | **0.819** |
+| `llm_labels_v4_blend.csv` | 0.818 |
+| `llm_labels_full.csv` | 0.802 |
+| `llm_labels_v2.csv` | 0.790 |
+| ours, rules only | 0.777 |
+| all-negative baseline | 0.655 |
+
+The published "0.893 vs gold, where regex scores 0.814" does not reproduce. The best public table
+is at 0.819, and the gap from our rule reader is +0.042 (95% CI [+0.010, +0.079]).
+
+**The public tables are one opinion, not three.** Pairwise agreement over all 4,407 x 12 cells:
+sol56 and v4_blend agree on **99.2%**, full agrees with them on 95.6-96.4%. A majority vote of all
+three scores 0.819 — exactly the best single table, i.e. no gain. Our rule reader agrees with them
+on only 84-85%, which is the only decorrelation available.
+
+**Some targets are not determined by the report.** All three public tables land on *identical*
+agreement for Synovitis (0.690), Effusion (0.724) and Contusion (0.741). Inspecting the reports
+shows why: "small joint effusion" appears in studies the gold labels call positive *and* studies
+it calls negative. The gold labels are expert image annotations, not report transcriptions, so
+text-derived supervision has a hard ceiling on those three findings, and it is near the high 0.60s
+/ low 0.70s rather than the high 0.80s.
+
+**Confirmed as scraped:** slot coverage reproduces the public figures to three decimals
+(AX_FS 1.000, SAG_NOFS 0.968, COR_FS 0.964, SAG_FS 0.942, COR_NOFS 0.773, AX_NOFS 0.194);
+4,407 studies, 24,371 series, exactly 58 gold-labelled, every study has a report.
+
+**New:** `Fluid_Sensitive` and `Fat_Suppression` are *identical* for all 24,371 training series,
+despite the data description warning they "are not necessarily equivalent". Greek is 7.3% of the
+corpus and was missing from our first lexicon entirely. 250 studies (5.7%) share a report with
+another study — real but small, so the report-duplicate fold guard will not collapse the split.
