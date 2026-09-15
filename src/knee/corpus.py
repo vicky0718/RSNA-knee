@@ -73,11 +73,11 @@ def normalise_laterality(image: np.ndarray, plane: str, side: str | None) -> np.
 def pick_slots(series: pd.DataFrame) -> dict[str, str]:
     """Choose one series per anatomical slot for a single study.
 
-    Expects columns SeriesInstanceUID, Anatomical_Plane, Fluid_Sensitive,
-    Fat_Suppression and n_slices. Ties break on slice count: more slices means
-    more of the joint covered.
+    Expects columns SeriesInstanceUID, Anatomical_Plane, Fat_Suppression and
+    n_slices. Ties break on slice count: more slices means more of the joint
+    covered.
     """
-    required = {"SeriesInstanceUID", "Anatomical_Plane", "Fluid_Sensitive", "Fat_Suppression"}
+    required = {"SeriesInstanceUID", "Anatomical_Plane", "Fat_Suppression"}
     missing = required - set(series.columns)
     if missing:
         raise KeyError(f"series frame is missing {sorted(missing)}")
@@ -85,10 +85,8 @@ def pick_slots(series: pd.DataFrame) -> dict[str, str]:
     if "n_slices" not in frame.columns:
         frame["n_slices"] = 0
     chosen: dict[str, str] = {}
-    for name, plane, fluid, fat in SLOTS:
+    for name, plane, fat in SLOTS:
         hit = (frame["Anatomical_Plane"] == plane) & (frame["Fat_Suppression"].astype(int) == int(fat))
-        if fluid is not None:
-            hit &= frame["Fluid_Sensitive"].astype(int) == int(fluid)
         candidates = frame[hit]
         if len(candidates):
             best = candidates.sort_values("n_slices", ascending=False).iloc[0]
@@ -97,10 +95,15 @@ def pick_slots(series: pd.DataFrame) -> dict[str, str]:
 
 
 def _similarity(a: tuple, b: tuple) -> int:
-    """How interchangeable two slots are: same plane counts most, then contrast."""
-    _, plane_a, fluid_a, fat_a = a
-    _, plane_b, fluid_b, fat_b = b
-    return 4 * (plane_a == plane_b) + 2 * (fluid_a == fluid_b) + 1 * (fat_a == fat_b)
+    """How interchangeable two slots are: same plane counts for more than same contrast.
+
+    A coronal fat-sat series shows the same anatomy as a coronal T1 from a
+    different angle of contrast; an axial fat-sat series shows different anatomy
+    entirely. Plane first, therefore.
+    """
+    _, plane_a, fat_a = a
+    _, plane_b, fat_b = b
+    return 2 * (plane_a == plane_b) + 1 * (fat_a == fat_b)
 
 
 def substitution_order(slot_name: str) -> list[str]:

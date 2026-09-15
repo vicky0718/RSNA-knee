@@ -7,9 +7,9 @@ from knee import corpus
 
 def _series(**overrides):
     rows = [
-        dict(SeriesInstanceUID="a", Anatomical_Plane="Sagittal", Fluid_Sensitive=1, Fat_Suppression=1, n_slices=30),
-        dict(SeriesInstanceUID="b", Anatomical_Plane="Axial", Fluid_Sensitive=1, Fat_Suppression=1, n_slices=24),
-        dict(SeriesInstanceUID="c", Anatomical_Plane="Coronal", Fluid_Sensitive=1, Fat_Suppression=1, n_slices=40),
+        dict(SeriesInstanceUID="a", Anatomical_Plane="Sagittal", Fat_Suppression=1, n_slices=30),
+        dict(SeriesInstanceUID="b", Anatomical_Plane="Axial", Fat_Suppression=1, n_slices=24),
+        dict(SeriesInstanceUID="c", Anatomical_Plane="Coronal", Fat_Suppression=1, n_slices=40),
     ]
     rows.extend(overrides.get("extra", []))
     return pd.DataFrame(rows)
@@ -49,14 +49,14 @@ def test_laterality_flip_axis_depends_on_plane():
 
 
 def test_pick_slots_requires_the_series_descriptors():
-    with pytest.raises(KeyError, match="Fluid_Sensitive"):
-        corpus.pick_slots(pd.DataFrame({"SeriesInstanceUID": ["a"], "Anatomical_Plane": ["Axial"], "Fat_Suppression": [1]}))
+    with pytest.raises(KeyError, match="Fat_Suppression"):
+        corpus.pick_slots(pd.DataFrame({"SeriesInstanceUID": ["a"], "Anatomical_Plane": ["Axial"]}))
 
 
 def test_pick_slots_prefers_more_slices():
-    extra = [dict(SeriesInstanceUID="a2", Anatomical_Plane="Sagittal", Fluid_Sensitive=1, Fat_Suppression=1, n_slices=45)]
+    extra = [dict(SeriesInstanceUID="a2", Anatomical_Plane="Sagittal", Fat_Suppression=1, n_slices=45)]
     chosen = corpus.pick_slots(_series(extra=extra))
-    assert chosen["SAG_FLUID_FS"] == "a2"
+    assert chosen["SAG_FS"] == "a2"
 
 
 def test_missing_slots_are_substituted_not_zeroed():
@@ -64,8 +64,9 @@ def test_missing_slots_are_substituted_not_zeroed():
     chosen = corpus.pick_slots(_series())
     fill = corpus.fill_missing_slots(chosen)
     assert len(fill.series) == 6
-    assert fill.substituted_from["SAG_T1"].startswith("SAG")  # same plane preferred
-    assert fill.real["SAG_T1"] is False
+    assert fill.substituted_from["AX_NOFS"] == "AX_FS"  # same plane beats same contrast
+    assert fill.substituted_from["SAG_NOFS"] == "SAG_FS"
+    assert fill.real["AX_NOFS"] is False
     assert fill.n_real == 3 and fill.usable
 
 
@@ -77,6 +78,6 @@ def test_study_with_no_series_is_flagged_unusable():
 
 def test_coverage_report_counts_unusable_studies():
     chosen = corpus.pick_slots(_series())
-    table = corpus.coverage_report({"s1": chosen, "s2": {"AX_FLUID_FS": "b"}, "s3": {}})
+    table = corpus.coverage_report({"s1": chosen, "s2": {"AX_FS": "b"}, "s3": {}})
     assert (table["coverage_filled"] >= table["coverage_raw"]).all()
     assert table.attrs["unusable_studies"] == 1
