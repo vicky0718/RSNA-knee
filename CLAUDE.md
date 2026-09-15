@@ -14,7 +14,9 @@ Schedule: `docs/action-plan.md`.
    Everything else it reads at 0.88-0.99.
 2. **Honest validation.** The plateau's per-finding fusion weights were fitted by leaderboard
    probes on a 30% split. We fit on OOF and check the gain survives a held-out fold —
-   `src/knee/fuse.py::honest_gain`.
+   `src/knee/fuse.py::honest_gain`. Note the shared-report leak turned out to be worth **+0.0002**
+   (`docs/results.md` §2) — the clusters are boilerplate, not repeat scans. **The scanner/site
+   leak is the untested one** and needs DICOM headers from Kaggle.
 3. **The empty-slot leak.** The public pipeline feeds a zero column when a slot is missing
    (Axial no-fat-sat is present for 19.4% of studies — verified against train_series.csv). Its
    author calls it "the cheapest score leak in this whole pipeline" —
@@ -24,13 +26,15 @@ Schedule: `docs/action-plan.md`.
 
 - **Never fit anything on the public leaderboard.** Weights, thresholds and blend ratios come from
   OOF. The leaderboard is a held-out check, and it is only 30% of the test set.
-- **Never trust a CV number without `folds.assert_no_leak`.** Studies share reports and scanners.
+- **Never trust a CV number without `folds.assert_no_leak`.** Studies share scanners; they also
+  share reports, though that one measured at +0.0002 and is boilerplate rather than repeat scans.
 - **Reject correlated arms.** Check `metrics.arm_correlation` before adding an ensemble member;
   above ~0.97 it is a 42nd copy of what we already have, whatever it scores alone.
 - **Silence is not a negative.** `not_mentioned` gets its own calibrated probability, never 0.
 - **Look for ties.** `metrics.tie_report` after every inference run; a block of identical
   predictions means studies are falling through the slot logic.
-- **Log every run** in `experiments.csv` before looking at the score.
+- **Log every run** in `experiments.csv` before looking at the score, and put measured findings
+  in `docs/results.md` — including the ones that came out null.
 - **Score label tables by AUC, never by agreement at 0.5.** The public tables hold calibrated
   probabilities; thresholding them throws away what the metric rewards and made a 0.893 table
   look like 0.819. `bin/score_labels.py` leads with AUC for this reason.

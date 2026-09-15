@@ -1,2 +1,4 @@
 date,config,arms,labels,folds,oof_macro_auc,worst_target,worst_target_auc,lb_public,runtime_min,notes
 2026-09-15,public-0941-repro,"dino20+a5x5+radimagenet+coatnet",public-pilkwang,public-probe22,,,,,,"baseline to reproduce; fill in after first submission"
+2026-09-15,tfidf-char35-logreg,text-only,v4_blend,random,0.9292,,,,,"leak probe: random split"
+2026-09-15,tfidf-char35-logreg,text-only,v4_blend,report-grouped,0.9290,,,,,"leak probe: inflation +0.0002, clusters are boilerplate"
