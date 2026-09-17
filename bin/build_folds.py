@@ -95,8 +95,10 @@ def main() -> int:
     parser.add_argument(
         "--guard",
         choices=("report", "scanner", "both"),
-        default="report",
-        help="which leak to group on; 'both' collapses on this dataset (see docs/results.md)",
+        default="scanner",
+        help="which leak to group on. scanner is the default and the measured one "
+             "(+0.0295 macro AUC of inflation); report measures +0.0002; "
+             "'both' collapses on this dataset (see docs/results.md)",
     )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--splits", type=int, default=5)

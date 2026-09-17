@@ -86,3 +86,55 @@ AX_FS 1.000, SAG_NOFS 0.968, COR_FS 0.964, SAG_FS 0.942, COR_NOFS 0.773,
 `Fluid_Sensitive` and `Fat_Suppression` are **identical for all 24,371 series**,
 despite the data description warning they "are not necessarily equivalent" — so
 a slot keyed on both can be unfillable, which is a bug we shipped once.
+
+---
+
+## 4. The scanner leak is worth +0.0295 macro AUC (2026-09-17)
+
+`bin/measure_leak.py`, same TF-IDF text model, three splits:
+
+| split | OOF macro AUC vs public labels | vs the 58 gold |
+|---|---|---|
+| random | 0.9292 | 0.7985 |
+| report-grouped | 0.9290 | 0.7992 |
+| **scanner-grouped** | **0.8997** | **0.7761** |
+
+| guard | inflation it removes |
+|---|---|
+| report | +0.0002 |
+| **scanner** | **+0.0295** |
+
+**A random split reads ~0.03 too high — three times the entire gold gap** (0.951 cut against a
+0.941 public plateau). Any team validating without a scanner guard is choosing models on a number
+that is wrong by more than the prize is wide.
+
+**Why it leaks.** Prevalence varies enormously by machine, so recognising the scanner predicts the
+label prior without learning any pathology:
+
+| scanner | n | PF OA | Synovitis | Medial OA | ACL |
+|---|---|---|---|---|---|
+| Philips Ingenia 3T | 450 | 0.22 | 0.01 | 0.24 | 0.14 |
+| Siemens MAGNETOM Vida 3T | 353 | 0.67 | 0.04 | 0.59 | 0.26 |
+| SIEMENS Aera 1.5T | 400 | 0.38 | 0.10 | 0.36 | 0.32 |
+| Philips Achieva dStream 3T | 141 | 0.33 | 0.28 | 0.25 | 0.43 |
+| GE SIGNA Artist 1.5T | 208 | 0.58 | 0.22 | 0.38 | 0.09 |
+
+The same effect shows up in the fold statistics: per-finding prevalence spread across folds is
+0.04 under report-grouping and **0.18** under scanner-grouping.
+
+**The two guards cannot compose.** Report boilerplate bridges scanners, so the transitive closure
+of both collapses to 37 groups with the largest holding 42.5% of studies. `bin/build_folds.py`
+takes `--guard report|scanner|both`; **scanner is the default**, because it is the one that
+measures.
+
+Caveat on scope, as in §2: this is a text model, which identifies the institution from reporting
+style. An image model would identify the scanner from acquisition characteristics — plausibly more
+easily, not less — but the exact magnitude for the image pipeline is still to be confirmed.
+
+### Header extraction, for the record
+
+`notebooks/kaggle/extract_headers.py` read one header per series for all 24,371 series in ~7
+minutes (10.4 studies/s), zero unreadable. 59 distinct scanners; `Laterality` present on 79% of
+series, `MagneticFieldStrength` on 95%, `SeriesDescription` on 94%. The same walk over ~1,322 test
+studies costs ~2 minutes, so headers are not the constraint on the 9-hour budget. Pixel decoding
+is still unmeasured.

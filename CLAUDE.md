@@ -12,11 +12,15 @@ Schedule: `docs/action-plan.md`.
    The public table is strong and **is the baseline to build on, not to replace**. Remaining
    headroom is target-specific: Synovitis 0.790, Fracture 0.793, Lateral OA 0.833, Contusion 0.860.
    Everything else it reads at 0.88-0.99.
-2. **Honest validation.** The plateau's per-finding fusion weights were fitted by leaderboard
-   probes on a 30% split. We fit on OOF and check the gain survives a held-out fold —
-   `src/knee/fuse.py::honest_gain`. Note the shared-report leak turned out to be worth **+0.0002**
-   (`docs/results.md` §2) — the clusters are boilerplate, not repeat scans. **The scanner/site
-   leak is the untested one** and needs DICOM headers from Kaggle.
+2. **Honest validation — now the strongest bet, with a number.** A random split inflates CV by
+   **+0.0295 macro AUC** through the scanner leak (`docs/results.md` §4): prevalence varies hugely
+   by machine (PF OA 0.22-0.67 across the eight largest scanners), so a model that recognises the
+   scanner predicts the prior without learning pathology. That inflation is **three times the
+   entire gold gap**. Anyone validating on a random split is reading a number ~0.03 too high.
+   The shared-report leak, by contrast, measures +0.0002 — boilerplate, not repeat scans.
+   Always build folds with `--guard scanner` (the default). The plateau's per-finding fusion
+   weights were fitted by leaderboard probes on a 30% split; we fit on OOF and check the gain
+   survives a held-out fold — `src/knee/fuse.py::honest_gain`.
 3. **The empty-slot leak.** The public pipeline feeds a zero column when a slot is missing
    (Axial no-fat-sat is present for 19.4% of studies — verified against train_series.csv). Its
    author calls it "the cheapest score leak in this whole pipeline" —
@@ -26,8 +30,9 @@ Schedule: `docs/action-plan.md`.
 
 - **Never fit anything on the public leaderboard.** Weights, thresholds and blend ratios come from
   OOF. The leaderboard is a held-out check, and it is only 30% of the test set.
-- **Never trust a CV number without `folds.assert_no_leak`.** Studies share scanners; they also
-  share reports, though that one measured at +0.0002 and is boilerplate rather than repeat scans.
+- **Never trust a CV number without `folds.assert_no_leak`, and group on the scanner.** The
+  scanner leak is worth +0.0295 macro AUC; the report leak is worth +0.0002 and is boilerplate.
+  The two guards cannot compose — their union collapses to 37 groups holding 42.5% in one.
 - **Reject correlated arms.** Check `metrics.arm_correlation` before adding an ensemble member;
   above ~0.97 it is a 42nd copy of what we already have, whatever it scores alone.
 - **Silence is not a negative.** `not_mentioned` gets its own calibrated probability, never 0.
