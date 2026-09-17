@@ -64,44 +64,45 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, required=True)
     parser.add_argument("--labels", type=Path, required=True)
-    parser.add_argument("--folds", type=Path, required=True)
+    parser.add_argument(
+        "--folds",
+        nargs="+",
+        required=True,
+        metavar="NAME=PATH",
+        help="one or more fold files to compare, e.g. report=cache/folds.csv scanner=cache/folds_scanner.csv",
+    )
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
     train = pd.read_csv(args.data / "train.csv").set_index("StudyInstanceUID")
     labels = pd.read_csv(args.labels).set_index("StudyInstanceUID").reindex(train.index)
-    guarded = pd.read_csv(args.folds).set_index("StudyInstanceUID")
-    clusters = guarded["report_cluster"]
-
     gold = train[train[list(TARGETS)].notna().all(axis=1)][list(TARGETS)]
     fit_predict = text_model(train["Report"], labels)
 
     rng = np.random.default_rng(args.seed)
-    random_fold = pd.Series(rng.permutation(np.arange(len(train)) % 5), index=train.index)
-    grouped_fold = guarded["fold"].reindex(train.index)
+    splits = {"random": pd.Series(rng.permutation(np.arange(len(train)) % 5), index=train.index)}
+    for spec in args.folds:
+        name, _, path = spec.partition("=")
+        if not path:
+            name, path = Path(spec).stem, spec
+        frame = pd.read_csv(path).set_index("StudyInstanceUID")
+        splits[name] = frame["fold"].reindex(train.index)
 
-    results = {}
-    for name, fold in (("random split", random_fold), ("report-grouped split", grouped_fold)):
+    scores = {}
+    for name, fold in splits.items():
         result = O.run_cv(fit_predict, fold)
-        results[name] = result
-        print(f"{name:24} OOF macro AUC vs public labels: {result.score(labels):.4f}")
-        print(f"{' ':24} OOF macro AUC vs the 58 gold:   {result.score(gold):.4f}")
+        scores[name] = result.score(labels)
+        print(f"{name:22} OOF macro AUC vs public labels: {scores[name]:.4f}")
+        print(f"{' ':22} OOF macro AUC vs the 58 gold:   {result.score(gold):.4f}")
 
-    inflation = results["random split"].score(labels) - results["report-grouped split"].score(labels)
-    print(f"\ninflation from ignoring the report leak: {inflation:+.4f} macro AUC")
-
-    shared = clusters.duplicated(keep=False)
-    print(f"\non the {int(shared.sum())} studies that share a report with another study:")
-    for name, result in results.items():
-        subset = result.predictions[shared.to_numpy()]
-        truth = labels.loc[subset.index]
-        from knee.metrics import macro_auc
-
-        score = macro_auc(
-            truth[list(TARGETS)].to_numpy(dtype=float) > 0.5, subset[list(TARGETS)].to_numpy()
-        )
-        print(f"  {name:24} {score:.4f}")
-    print("  (this subset is where the two splits differ; the rest is identical by construction)")
+    print("\ninflation each guard removes, against the random split:")
+    for name, score in scores.items():
+        if name == "random":
+            continue
+        print(f"  {name:20} {scores['random'] - score:+.4f} macro AUC")
+    print("\nA guard worth keeping shows a positive number here: the random split was scoring")
+    print("higher than the model deserved. A number near zero means the guard costs nothing")
+    print("and protects against nothing measurable.")
     return 0
 
 
