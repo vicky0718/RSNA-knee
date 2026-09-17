@@ -30,7 +30,14 @@ from knee import folds as F  # noqa: E402
 from knee.constants import TARGETS  # noqa: E402
 
 
-def build(data: Path, labels_path: Path | None, scanner_path: Path | None, n_splits: int, seed: int):
+def build(
+    data: Path,
+    labels_path: Path | None,
+    scanner_path: Path | None,
+    guard: str,
+    n_splits: int,
+    seed: int,
+):
     train = pd.read_csv(data / "train.csv").set_index("StudyInstanceUID")
 
     if labels_path is not None:
@@ -44,22 +51,28 @@ def build(data: Path, labels_path: Path | None, scanner_path: Path | None, n_spl
 
     clusters = F.report_clusters(train["Report"])
     clusters.index = train.index
-    keys = [clusters]
+    available = {"report": clusters}
 
     if scanner_path is not None:
         scanner = pd.read_csv(scanner_path).set_index("StudyInstanceUID")["scanner_key"]
         scanner = scanner.reindex(train.index).fillna(pd.Series(train.index, index=train.index))
         scanner.name = "scanner_key"
-        keys.append(scanner)
-    else:
-        print("! no --scanner-keys: guarding the report leak only, not the scanner leak")
+        available["scanner"] = scanner
+    elif guard in ("scanner", "both"):
+        raise SystemExit(f"--guard {guard} needs --scanner-keys (run notebooks/kaggle/extract_headers.py)")
 
     print("\ngrouping diagnostics:")
-    print(F.group_diagnostics(*keys).to_string(index=False))
+    print(F.group_diagnostics(*available.values()).to_string(index=False))
 
-    groups = F.combine_groups(*keys) if len(keys) > 1 else clusters.rename("group")
+    # The two guards do not compose on this data: report boilerplate bridges
+    # scanners, so the transitive closure of both collapses to 37 groups with the
+    # largest holding 42% of studies. Pick one deliberately rather than letting a
+    # fallback pick for you.
+    wanted = list(available.values()) if guard == "both" else [available[guard]]
+    print(f"\nguarding: {guard}")
+    groups = F.combine_groups(*wanted) if len(wanted) > 1 else wanted[0].rename("group")
     fold = F.make_folds(labels, groups, n_splits=n_splits, seed=seed)
-    F.assert_no_leak(fold, groups, *keys)
+    F.assert_no_leak(fold, groups, *wanted)
     print(f"\nfold sizes: {fold.value_counts().sort_index().to_dict()}")
 
     prevalence = pd.DataFrame(
@@ -79,12 +92,18 @@ def main() -> int:
     parser.add_argument("--data", type=Path, required=True)
     parser.add_argument("--labels", type=Path, default=None, help="label table for stratification")
     parser.add_argument("--scanner-keys", type=Path, default=None)
+    parser.add_argument(
+        "--guard",
+        choices=("report", "scanner", "both"),
+        default="report",
+        help="which leak to group on; 'both' collapses on this dataset (see docs/results.md)",
+    )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--splits", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    frame = build(args.data, args.labels, args.scanner_keys, args.splits, args.seed)
+    frame = build(args.data, args.labels, args.scanner_keys, args.guard, args.splits, args.seed)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(args.out, index=False)
     print(f"\nwrote {args.out} ({len(frame)} studies)")

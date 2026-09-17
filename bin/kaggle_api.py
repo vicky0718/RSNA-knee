@@ -149,24 +149,49 @@ class Kaggle:
         raise TimeoutError(f"kernel {slug} still running after {timeout}s")
 
     def kernel_output(self, slug: str, out_dir: Path) -> list[Path]:
-        payload = self._call(
-            "GET", "/kernels/output", params={"userName": self.username, "kernelSlug": slug}
-        ).json()
+        """Download a kernel's output files and its log.
+
+        The JSON at /kernels/output hands back per-file URLs on
+        www.kaggleusercontent.com, which this sandbox's egress policy denies.
+        The zip endpoint serves the same bytes from www.kaggle.com, which is
+        allowed, so take that route rather than working around the denial.
+        """
+        import zipfile
+
         out_dir.mkdir(parents=True, exist_ok=True)
+        archive = out_dir / f"{slug}.zip"
+        response = self._call(
+            "GET", f"/kernels/output/download/{self.username}/{slug}", allow_redirects=True
+        )
+        archive.write_bytes(response.content)
         written = []
-        for item in payload.get("files", []):
-            url, name = item.get("url"), item.get("fileName")
-            if not url or not name:
-                continue
-            blob = requests.get(url, auth=self.auth, timeout=600)
-            blob.raise_for_status()
-            target = out_dir / Path(name).name
-            target.write_bytes(blob.content)
-            written.append(target)
-        if payload.get("log"):
-            (out_dir / f"{slug}.log").write_text(payload["log"])
-            written.append(out_dir / f"{slug}.log")
+        with zipfile.ZipFile(archive) as bundle:
+            for name in bundle.namelist():
+                target = out_dir / Path(name).name
+                target.write_bytes(bundle.read(name))
+                written.append(target)
+        archive.unlink()
+
+        log = self._call(
+            "GET", "/kernels/output", params={"userName": self.username, "kernelSlug": slug}
+        ).json().get("log")
+        if log:
+            path = out_dir / f"{slug}.log"
+            path.write_text(log if isinstance(log, str) else json.dumps(log))
+            written.append(path)
         return written
+
+    def kernel_stdout(self, slug: str) -> str:
+        """Just the stdout stream, already unwrapped from Kaggle's log envelope."""
+        log = self._call(
+            "GET", "/kernels/output", params={"userName": self.username, "kernelSlug": slug}
+        ).json().get("log")
+        if isinstance(log, str):
+            try:
+                log = json.loads(log)
+            except json.JSONDecodeError:
+                return log
+        return "".join(e["data"] for e in log or [] if e.get("stream_name") == "stdout")
 
 
 if __name__ == "__main__":
