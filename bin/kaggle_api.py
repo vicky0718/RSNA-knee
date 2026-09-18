@@ -105,6 +105,8 @@ class Kaggle:
         *,
         competition_sources: list[str] | None = None,
         dataset_sources: list[str] | None = None,
+        kernel_sources: list[str] | None = None,
+        model_sources: list[str] | None = None,
         enable_gpu: bool = False,
         kernel_type: str = "script",
     ) -> dict:
@@ -122,8 +124,11 @@ class Kaggle:
             "enableInternet": False,
             "datasetDataSources": dataset_sources or [],
             "competitionDataSources": competition_sources or [],
-            "kernelDataSources": [],
-            "modelDataSources": [],
+            # Weights can live in another kernel's output or in a Kaggle Model,
+            # not only in a dataset. Leaving these empty is how a run fails with
+            # "did not return all members: 0 / 20" a hundred GPU-seconds in.
+            "kernelDataSources": kernel_sources or [],
+            "modelDataSources": model_sources or [],
             "categoryIds": [],
         }
         return self._call("POST", "/kernels/push", json=body).json()
