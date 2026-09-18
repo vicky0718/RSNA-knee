@@ -138,3 +138,28 @@ minutes (10.4 studies/s), zero unreadable. 59 distinct scanners; `Laterality` pr
 series, `MagneticFieldStrength` on 95%, `SeriesDescription` on 94%. The same walk over ~1,322 test
 studies costs ~2 minutes, so headers are not the constraint on the 9-hour budget. Pixel decoding
 is still unmeasured.
+
+---
+
+## 5. The public stack's own diagnostics agree with bet #2 (2026-09-18)
+
+Reproducing the public 0.941 pipeline privately (`knee-public-0941-repro`, all sixteen sources
+attached) produced a valid `submission.csv` — rank values, not the 0.5 fallback its error path
+writes. Along the way it printed its author's own arm-agreement diagnostic, which is worth
+recording because it independently names where LB-fitted fusion weights are dangerous:
+
+> These findings have two arms that already agree above 0.99, so their outer weight is close to a
+> no-op no matter what it is set to: **Lateral Meniscus, PF OA, Synovitis, Baker's, Fracture**
+>
+> These findings have genuinely different arms, which is where an outer weight actually decides
+> the ordering — and therefore where a weight fitted to the public split can do real damage
+> privately: **ACL, MCL, Medial Meniscus, Medial OA, Lateral OA, Effusion, Contusion**
+
+Note what this implies about probe #22, the LB-tuned routing ~350 teams share: it set Lateral
+Meniscus to 1.00, discarding three of four stages for that column — and Lateral Meniscus is on the
+*no-op* list, where the arms agree above 0.99 anyway. The headline change of that probe was
+fitted to noise on a 30% split.
+
+**Consequence for the OOF refit (§4, bet #2):** prioritise the seven findings where the arms
+genuinely disagree. That is where an honestly fitted weight can gain, and where the crowd's
+fitted-to-public weight can lose.
