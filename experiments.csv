@@ -4,3 +4,4 @@ date,config,arms,labels,folds,oof_macro_auc,worst_target,worst_target_auc,lb_pub
 2026-09-15,tfidf-char35-logreg,text-only,v4_blend,report-grouped,0.9290,,,,,"leak probe: inflation +0.0002, clusters are boilerplate"
 2026-09-17,tfidf-char35-logreg,text-only,v4_blend,scanner-grouped,0.8997,,,,,"scanner guard removes +0.0295 inflation vs random"
 2026-09-18,public-0941-repro-v3,"dino20+a5x5+radimagenet+coatnet",public-v4_blend,public-probe22,,,,pending-submit,,"private repro of the public 0.941; green, submission.csv real (not fallback); awaiting Submit click"
+2026-09-19,public-radimagenet-2arm-blend,"v52+v52_e11",public-v4_blend,scanner-grouped-outer,0.8460,per-finding routing,0.8393,,,"global weight beats per-target routing by 0.0067 held-out; blending worth +0.015"

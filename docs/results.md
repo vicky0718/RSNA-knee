@@ -163,3 +163,62 @@ fitted to noise on a 30% split.
 **Consequence for the OOF refit (§4, bet #2):** prioritise the seven findings where the arms
 genuinely disagree. That is where an honestly fitted weight can gain, and where the crowd's
 fitted-to-public weight can lose.
+
+---
+
+## 6. Plan 2: the public folds are not scanner-guarded, and per-finding routing is noise (2026-09-19)
+
+`notebooks/kaggle/inspect_weights.py` read metadata out of every public weight bundle, looking for
+a recoverable fold assignment. It found better than that.
+
+**`v52_oof.csv` and `v52_e11_oof.csv` ship real out-of-fold predictions** — 4,407 rows, all twelve
+targets, plus `fold` and `is_gold` columns. Two of the public RadImageNet arms therefore come with
+their OOF and their fold assignment already computed. Several bundles also carry their own scores
+(`weak_oof_auc`, `gold_oof_auc` ≈ 0.82–0.86).
+
+### Their folds are random with respect to scanner
+
+Cross-referencing the `fold` column against the scanner keys we extracted:
+
+- **48 of 59 scanners span more than one fold.** The 11 that don't are singletons.
+- Every large scanner is spread ~20% into each of the five folds:
+
+| scanner | fold 0 | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|---|
+| Philips Ingenia 3T | 0.22 | 0.20 | 0.18 | 0.16 | 0.23 |
+| SIEMENS Aera 1.5T | 0.17 | 0.17 | 0.26 | 0.20 | 0.20 |
+| MAGNETOM Vida 3T | 0.20 | 0.22 | 0.18 | 0.21 | 0.19 |
+
+So the public pipeline's own OOF numbers carry the full scanner leak measured in §4. Their
+reported 0.82–0.86 is inflated by roughly the +0.0295 we measured on a proxy model. **This is the
+direct confirmation of bet #2 against the leading public pipeline, not against a stand-in.**
+
+### Per-finding routing does not survive a scanner-grouped held-out fold
+
+Blending the two arms (rank correlation 0.729 — genuinely different, well under the 0.97
+rejection threshold), weights fitted on their OOF, selection validated on scanner-grouped
+outer folds via `fuse.honest_gain`:
+
+| fusion | macro AUC |
+|---|---|
+| best single arm (v52) | 0.8307 |
+| flat 50/50 blend | 0.8459 |
+| **OOF-fitted global weight** (v52 0.545 / v52_e11 0.455) | **0.8460** |
+| per-finding routing, in-sample | 0.8474 |
+| per-finding routing, **held-out** | **0.8393** |
+
+**Per-finding routing loses to a single global weight by 0.0067 on folds it did not see**, while
+looking 0.0014 better in-sample. That is the probe-#22 failure mode reproduced end to end on real
+public OOF: twelve correlated columns, fitted to a split, flattering themselves.
+
+Blending two decorrelated arms is worth **+0.015**; tuning per-finding weights on top is worth
+**−0.007**. Almost all the fitted weight is a fair coin (0.545/0.455).
+
+Scope: this tests the *inner* RadImageNet two-arm blend. Probe #22 tunes the *outer*
+CoAtNet-versus-transformer routing, and we have no OOF for those arms, so this is strong
+supporting evidence rather than a direct test of that specific weight set.
+
+**Consequences.** Use one global blend weight unless per-finding routing demonstrably survives
+`honest_gain` on scanner-grouped folds. Decorrelated arms, not more members, are where the gain
+is. And the public checkpoints are not a dead end for honest work after all: two arms' OOF is
+already in hand, at zero compute cost.
