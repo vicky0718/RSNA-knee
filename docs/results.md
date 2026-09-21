@@ -222,3 +222,73 @@ supporting evidence rather than a direct test of that specific weight set.
 `honest_gain` on scanner-grouped folds. Decorrelated arms, not more members, are where the gain
 is. And the public checkpoints are not a dead end for honest work after all: two arms' OOF is
 already in hand, at zero compute cost.
+
+---
+
+## 7. Which arms ship OOF, and what the rest reveal (2026-09-21)
+
+Completing the Plan 2 sweep across every public bundle.
+
+### OOF availability
+
+| arm | OOF shipped? | what it carries |
+|---|---|---|
+| RadImageNet v52 | **yes** | `v52_oof.csv`, 4,407 rows + `fold` + `is_gold` |
+| RadImageNet v52_e11 | **yes** | `v52_e11_oof.csv`, same shape |
+| DINO 20-member | no | `manifest.json` gives each member's fold, but no predictions |
+| A5 5-fold | no | each checkpoint carries `fold`, no predictions |
+| CoAtNet / Raptor | no | `gold_auc` and a per-target `aucs` dict only |
+
+So the honest refit is limited to the two RadImageNet arms (§6) unless we spend GPU time
+regenerating OOF for the others. The DINO arm's fold-per-member *is* recorded, so its OOF is
+reconstructible in principle — but it needs a pass over all 4,407 studies, and the study→fold
+mapping for that arm is not published (only the RadImageNet arms' is). That makes it a real
+compute commitment, not a free one.
+
+### Correction: the fold models do not use site as a feature
+
+The A5 configs carry `n_sites: 109`, which looked like site conditioning — a model built on the
+very leak we measured. It is not: the same config says `meta: "none"` and `n_meta: 0`, so the
+conditioning path exists in the code and is switched off. The hypothesis is withdrawn.
+
+One useful fact survives it: the organisers' data has **109 sites**, finer than the 59 distinct
+scanner keys we recovered from the headers. Our scanner guard is therefore coarser than the true
+site structure, and a site-level guard would likely be stricter still.
+
+### The stack is label-limited on the findings that matter
+
+Scoring the public label table and the strongest CoAtNet arm against the *same* 58 gold studies:
+
+| target | label table | CoAtNet v5 | model − label |
+|---|---|---|---|
+| **Synovitis** | 0.790 | 0.797 | **+0.007** |
+| Fracture | 0.793 | 0.917 | +0.124 |
+| Lateral OA | 0.833 | 0.867 | +0.034 |
+| Contusion | 0.860 | 0.928 | +0.068 |
+| Effusion | 0.877 | 0.976 | +0.099 |
+| **Lateral Meniscus** | 0.879 | 0.877 | **−0.002** |
+| **PF OA** | 0.902 | 0.847 | **−0.055** |
+| Medial OA | 0.932 | 0.977 | +0.045 |
+| Baker's | 0.944 | 0.971 | +0.027 |
+| Medial Meniscus | 0.948 | 0.957 | +0.009 |
+| MCL | 0.968 | 0.980 | +0.012 |
+| ACL | 0.987 | 0.965 | −0.022 |
+
+Correlation between label quality and model performance: **0.691**. Mean margin: **+0.029**.
+
+That splits the twelve findings into three regimes:
+
+- **Label-limited** — the model has already reached its supervision and no architecture will move
+  it: **Synovitis (+0.007), Lateral Meniscus (−0.002), Medial Meniscus (+0.009)**.
+- **Model-limited** — the labels are better than the model is using: **PF OA (−0.055),
+  ACL (−0.022)**.
+- **Image carries more than the report** — vision genuinely adds: Fracture (+0.124),
+  Effusion (+0.099), Contusion (+0.068).
+
+**Synovitis is the single biggest drag on the macro average (0.79) and it is squarely
+label-limited.** That revives bet #1 in a much narrower and more defensible form than "beat the
+public label table": a reader aimed at Synovitis alone.
+
+Caveat: the CoAtNet `gold_auc` values are almost certainly not out-of-fold — the 58 gold studies
+were in the training pool under weak labels — so the model column is optimistic. That strengthens
+the label-limited readings (optimistic and still at ceiling) and weakens the model-limited ones.
