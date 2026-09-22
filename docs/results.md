@@ -292,3 +292,54 @@ public label table": a reader aimed at Synovitis alone.
 Caveat: the CoAtNet `gold_auc` values are almost certainly not out-of-fold — the 58 gold studies
 were in the training pool under weak labels — so the model column is optimistic. That strengthens
 the label-limited readings (optimistic and still at ceiling) and weakens the model-limited ones.
+
+---
+
+## 8. Synovitis cannot be improved from the reports — bet #1 is closed (2026-09-22)
+
+§7 found Synovitis label-limited (label 0.790, model 0.797) and proposed a reader aimed at it
+alone. That proposal is dead, and the measurement that kills it is worth more than the reader
+would have been.
+
+### The report usually does not contain the answer
+
+Among the 58 gold studies:
+
+- the report **addresses** Synovitis in only **15 of 58**
+- **16 of the 27 gold positives have a report that never mentions it**
+- a **perfect** mention-reader — correct wherever the report speaks, agnostic (0.5) where it is
+  silent — scores **AUC 0.639**
+
+The public table scores **0.790**, which is *0.15 above the ceiling of any extraction-based
+reader*. It is not extracting Synovitis; it is inferring it from context. No better reader beats
+that, because reading is not the binding constraint.
+
+For contrast, the report addresses ACL in 31 of 58 studies — twice the rate — and the public
+table reaches 0.987 there.
+
+### Nor can it be improved by recombining the label columns
+
+Pre-specified candidates, scored against gold Synovitis with bootstrap CIs on the 58:
+
+| candidate | AUC | delta vs public column |
+|---|---|---|
+| public Synovitis alone | **0.790** | — |
+| rank-mean(Syn, Effusion) | 0.782 | −0.008 [−0.069, +0.049] |
+| rank-mean(Syn, Effusion, Medial OA) | 0.802 | +0.011 [−0.042, +0.070] |
+| LOO logistic, all 12 columns | 0.695 | −0.094 [−0.238, +0.033] |
+| LOO logistic, (Syn, Eff, Medial OA) | 0.725 | −0.065 [−0.192, +0.055] |
+
+Every interval crosses zero; the logistic fits overfit badly on 58 samples. Effusion and Medial OA
+carry real independent signal (0.729 each as standalone predictors of gold Synovitis), and it is
+still not enough.
+
+### Consequence: bet #1 is closed
+
+The label bet has now failed three times, each more narrowly than the last: we cannot beat the
+public table overall (§1, −0.144), our decorrelated reader adds nothing to it (§1), and its
+weakest finding is at the information ceiling of the text (here). **Stop spending time on label
+extraction.**
+
+What that leaves: Synovitis at 0.79 is a floor set by the data, not by our effort. The only way it
+moves is supervision the report cannot give — the 58 gold studies, or a model that learns
+Synovitis from images while ignoring the noisy text label rather than fitting it.
